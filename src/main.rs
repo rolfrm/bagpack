@@ -96,8 +96,8 @@ fn iterate_files(files : Vec<FileInfo>,flattened:  &mut Vec<FileInfo>)
     }
 }
 
-fn iterate_files2<F>(files : &Vec<FileInfo>, fcn: &F, base: &Path)
-    where F: Fn(&FileInfo, &Path) {
+fn iterate_files2<F>(files : &Vec<FileInfo>, fcn: &mut F, base: &Path)
+    where F: FnMut(&FileInfo, &Path) {
         for item in files{
             let subbuf = base.join(&item.path);
             let sub = subbuf.as_path();
@@ -155,7 +155,10 @@ fn main() {
     let enc = ZlibEncoder::new(fi, Compression::default());
     let mut tar = tar::Builder::new(enc);
     //iterate_files(files, |xx : &FileInfo| tar.append_path(Path::new(&xx.path)).unwrap());
-    iterate_files2(&files, &|x, s| println!(">> {} {}", x.path, s.to_str().unwrap()), &root);
+    iterate_files2(&files, &mut |x, s| {
+        tar.append_path(Path::new(s.to_str().unwrap()));
+        println!(">> {} {}", x.path, s.to_str().unwrap());
+    }, &root);  
 
     //iterate_files2(&files, &|x, s| {
         
