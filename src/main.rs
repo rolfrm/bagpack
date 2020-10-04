@@ -22,6 +22,7 @@ use flate2::Compression;
 
 use crypto::{ symmetriccipher, buffer, aes, blockmodes };
 use crypto::buffer::{ ReadBuffer, WriteBuffer, BufferResult };
+use crypto::digest::Digest;
 
 use rand::CryptoRng;
 use rand::RngCore;

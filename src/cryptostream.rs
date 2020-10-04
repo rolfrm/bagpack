@@ -6,9 +6,9 @@ use rand::RngCore;
 use crypto::{ aes, blockmodes };
 use crypto::buffer::{ ReadBuffer, WriteBuffer, BufferResult };
 use crypto::symmetriccipher::{Encryptor, Decryptor};
-use crate::memorystream::MemoryStream;
-use crypto::buffer::{RefReadBuffer, RefWriteBuffer};
 
+use crypto::buffer::{RefReadBuffer, RefWriteBuffer};
+use crypto::digest::Digest;
 pub struct EncryptStream<W: Write>{
     inner: Option<W>,
     enc : Box<Encryptor>,
@@ -36,12 +36,10 @@ impl <W: Write> EncryptStream<W>{
                wd.pos = self.offset;
                let result = self.enc.encrypt(&mut rd, &mut wd, eof);
                self.offset = wd.pos;
-               println!("Ok... {} {}", self.offset, buf.len());
                let mut rd2 = wd.take_read_buffer();
                let rem = rd2.take_remaining().to_vec();
                self.get_mut().write(rem.as_slice());
                if let Ok(r) = result {
-                println!("Ok...");
                 match r {
                 BufferResult::BufferUnderflow => ctn = false,
                 BufferResult::BufferOverflow => {}
@@ -94,20 +92,14 @@ impl <R: Read> DecryptStream<R>{
         while read < wd.len {
             if self.size == 0 || fill{
                 let max_read = std::cmp::min(self.read_buf.len(), wd.len - read);
-                //let mut bufslize = &self.read_buf[0..max_read];
-                println!("READ {} {}", self.offset, max_read);
                 let result = self.inner.read(&mut self.read_buf[self.offset..max_read]);
-                println!("{} {} {} {}", self.offset, max_read, read, wd.len);
                 if let Ok(s) = result {
                     if s == 0 {
                        end = true;
-                    }else{
-                        self.size += s;
-
                     }
+                    self.size += s;
                 }
                 fill = false;
-                //self.get_mut().read(&mut bufslize);
             }
             let mut rd = RefReadBuffer::new(&mut self.read_buf[0..self.size]);
             let result = self.dec.decrypt(&mut rd, &mut wd, true);
@@ -121,28 +113,7 @@ impl <R: Read> DecryptStream<R>{
             }else{
                 result.unwrap();
             }
-            
-            
-               /*let mut rd = RefReadBuffer::new(&mut self.read_buf[0..self.size]);
-               rd.pos = self.offset;
-               let result = self.dec.decrypt(wd, output: &mut RefWriteBuffer, eof: bool)(&mut rd, &mut wd, eof);
-               self.offset = wd.pos;
-               println!("Ok... {} {}", self.offset, buf.len());
-               let mut rd2 = wd.take_read_buffer();
-               let rem = rd2.take_remaining().to_vec();
-               self.get_mut().write(rem.as_slice());
-               if let Ok(r) = result {
-                println!("Ok...");
-                match r {
-                BufferResult::BufferUnderflow => ctn = false,
-                BufferResult::BufferOverflow => {}
-                }
-                
-            }else{
-                panic!("Oh no!");
-            }*/
         }
-        
         return Ok(buf.len());
     }
 }
@@ -153,15 +124,24 @@ impl <R: Read> Read for DecryptStream<R>{
     }
 }
 
+pub fn hash_string(key: String) -> [u8; 32]{
+    let mut out: [u8; 32] = [0; 32];
+    let mut sha = crypto::sha3::Sha3::new(crypto::sha3::Sha3Mode::Sha3_256);
+    sha.input(&key.as_bytes());
+    
+    sha.result(&mut out);
+    return out;
+}
 
-pub fn  new_aes_encrypt_stream<W: Write>(key : String, out: W) -> EncryptStream<W>{
-    let mut key: [u8; 32] = [0; 32];
+
+pub fn  new_aes_encrypt_stream<W: Write>(key : String, mut out: W) -> EncryptStream<W>{
+    let key: [u8; 32] = hash_string(key);
     let mut iv: [u8; 16] = [0; 16];
     let mut rng = rand::rngs::OsRng;
-    rng.fill_bytes(&mut key);
     rng.fill_bytes(&mut iv);
+    out.write(&iv).unwrap();
 
-    let mut encryptor = aes::cbc_encryptor(
+    let encryptor = aes::cbc_encryptor(
         aes::KeySize::KeySize256,
         &key,
         &iv,
@@ -174,14 +154,12 @@ pub fn  new_aes_encrypt_stream<W: Write>(key : String, out: W) -> EncryptStream<
     };
 }
 
-pub fn  new_aes_decrypt_stream<R: Read>(key : String, reader: R) -> DecryptStream<R>{
-    let mut key: [u8; 32] = [0; 32];
+pub fn  new_aes_decrypt_stream<R: Read>(key : String, mut reader: R) -> DecryptStream<R>{
+    let key: [u8; 32] = hash_string(key);
     let mut iv: [u8; 16] = [0; 16];
-    let mut rng = rand::rngs::OsRng;
-    rng.fill_bytes(&mut key);
-    rng.fill_bytes(&mut iv);
+    reader.read(&mut iv).unwrap();    
 
-    let mut decryptor = aes::cbc_decryptor(
+    let decryptor = aes::cbc_decryptor(
         aes::KeySize::KeySize256,
         &key,
         &iv,
@@ -200,6 +178,13 @@ pub fn  new_aes_decrypt_stream<R: Read>(key : String, reader: R) -> DecryptStrea
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::memorystream::MemoryStream;
+
+#[test]
+fn test_hash_string(){
+    let hash1 = hash_string(String::from("Hello world"));
+    println!("{:?}", hash1);
+}
 
     #[test]
     fn test_aes_cryptostream() {
@@ -226,8 +211,9 @@ mod test {
         let mut x : Vec<u8> = vec!(0; 32);
         dec.read(&mut x);
         dec.finish();
-
-        println!("{:?}", x);
+        let reread = String::from_utf8(x).unwrap();
+        println!("XX: {}", reread);
+        
         
         
     }
