@@ -1,4 +1,8 @@
 extern crate chrono;
+extern crate crypto;
+extern crate rand;
+mod cryptostream;
+mod memorystream;
 use std::io;
 use chrono::offset::Utc;
 use chrono::DateTime;
@@ -16,6 +20,11 @@ use tar::Archive;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
+use crypto::{ symmetriccipher, buffer, aes, blockmodes };
+use crypto::buffer::{ ReadBuffer, WriteBuffer, BufferResult };
+
+use rand::CryptoRng;
+use rand::RngCore;
 #[derive(Debug, Clone)]
 struct FileInfo {
     path: String,
@@ -149,16 +158,37 @@ fn main() {
     wstr_dir(&mut items, root.join("dir2"));
     wstr_file(&mut items, root.join("dir2/x"), String::from("_____"));
     let files :Vec<FileInfo> = get_file_infos(Path::new(&path));//.iter().for_each(|x| println!("{:?}", x));
+
+
+
+
+
     let flattened = files.flatten();
     println!("File Count {}", flattened.len());
+
+
+let mut key: [u8; 32] = [0; 32];
+    let mut iv: [u8; 16] = [0; 16];
+    let mut rng = rand::rngs::OsRng;
+    rng.fill_bytes(&mut key);
+    rng.fill_bytes(&mut iv);
+
+    let mut encryptor = aes::cbc_encryptor(
+        aes::KeySize::KeySize256,
+        &key,
+        &iv,
+        blockmodes::PkcsPadding);
+    
+
+
     let fi = File::create("archive.tar").unwrap();
     let enc = ZlibEncoder::new(fi, Compression::default());
     let mut tar = tar::Builder::new(enc);
     //iterate_files(files, |xx : &FileInfo| tar.append_path(Path::new(&xx.path)).unwrap());
-    iterate_files2(&files, &mut |x, s| {
-        tar.append_path(Path::new(s.to_str().unwrap()));
+    /*iterate_files2(&files, &mut |x, s| {
+        tar.append_file(, file: &mut fs::File)(header: &mut Header, path: P, data: R)(Path::new(s.to_str().unwrap()));
         println!(">> {} {}", x.path, s.to_str().unwrap());
-    }, &root);  
+    }, &root);  */
 
     //iterate_files2(&files, &|x, s| {
         
@@ -176,6 +206,19 @@ fn main() {
         println!("{}", item.to_str().unwrap());
         fs::remove_file(&item).or_else(|_| {fs::remove_dir(&item)});
     }
+
+    
+    
+
+
+
+    //let rng = rand::RngCore::fill_bytes(key);
+
+    //let mut rng = rand::rngs::OsRng::new();
+    
+    //OsRng::fill_bytes(&mut key);
+    //OsRng.fill_bytes(&mut iv);
+
 
     /*fs::create_dir(root);
 
