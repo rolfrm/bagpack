@@ -31,8 +31,11 @@ impl Write for MemoryStream{
 impl Read for MemoryStream{
     fn read(&mut self, buf: &mut [u8]) -> Result<usize>{
         let copy_end = self.offset + buf.len();
-        let copy_maxed = std::cmp::min(copy_end, self.offset + self.buffer.len());
-        buf.copy_from_slice(&self.buffer[self.offset..copy_maxed]);
+        let copy_maxed = std::cmp::min(copy_end, self.buffer.len());
+        for i in 0..copy_maxed {
+            buf[i] = self.buffer[i + self.offset];
+        }
+        //buf.copy_from_slice(&self.buffer[self.offset..copy_maxed]);
         let s = copy_maxed - self.offset;
         self.offset = copy_maxed;
         return Ok(s);
