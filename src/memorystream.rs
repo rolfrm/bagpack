@@ -1,35 +1,38 @@
-use std::io::{Write,Result, Read};
+use std::io::{Read, Result, Write};
 
 pub struct MemoryStream {
     pub buffer: Box<Vec<u8>>,
-    offset: usize
+    offset: usize,
 }
 
-impl MemoryStream{
+impl MemoryStream {
     pub fn new() -> MemoryStream {
-        MemoryStream { buffer: Box::new(Vec::new()), offset: 0 }
+        MemoryStream {
+            buffer: Box::new(Vec::new()),
+            offset: 0,
+        }
     }
-    pub fn rewind(&mut self){
+    pub fn rewind(&mut self) {
         self.offset = 0;
     }
-    pub fn get_buffer(&self) -> Vec<u8>{
+    pub fn get_buffer(&self) -> Vec<u8> {
         return self.buffer.to_vec();
     }
 }
 
-impl Write for MemoryStream{
-    fn write(&mut self, buf: &[u8]) -> Result<usize>{
+impl Write for MemoryStream {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.buffer.write(buf).unwrap();
         self.offset += buf.len();
         return Ok(buf.len());
     }
-    fn flush(&mut self) -> Result<()>{
+    fn flush(&mut self) -> Result<()> {
         return Ok(());
     }
 }
 
-impl Read for MemoryStream{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize>{
+impl Read for MemoryStream {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let copy_end = buf.len();
         let copy_maxed = std::cmp::min(copy_end, self.buffer.len() - self.offset);
         for i in 0..copy_maxed {
@@ -40,25 +43,24 @@ impl Read for MemoryStream{
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn test_memorystream() {
-        let mut mem = Box::new(MemoryStream::new());
+        let mem = Box::new(MemoryStream::new());
         let mut wrt = std::io::BufWriter::new(mem);
-        
+
         let bytes = "hej".as_bytes();
         wrt.write(bytes).unwrap();
         wrt.flush().unwrap();
-        
+
         if let Ok(x) = wrt.into_inner() {
             let v = x.get_buffer();
-            
+
             assert_eq!(3, v.len());
-            for  i in 0..3 {
+            for i in 0..3 {
                 assert_eq!(bytes[i], v[i]);
             }
         }
